@@ -1,0 +1,58 @@
+name: Update VPN subscription
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download and merge subscriptions
+        shell: bash
+        run: |
+          set -e
+
+          urls=(
+            "https://raw.githubusercontent.com/v0id9/vpn-configs/refs/heads/main/vpn.txt"
+            "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/26.txt"
+            "https://gitverse.ru/api/repos/flaafix/AetrisVPN/raw/branch/master/AetrisVPN.txt"
+            "https://raw.githubusercontent.com/Diversan313/apex-parser/main/subs/main/alive_bl.txt"
+            "https://sub.vlessfo.ru/vlessforu/working_configs.txt"
+            "https://gitverse.ru/api/repos/Pizduk/PizdukVPN/raw/branch/master/sub.txt"
+          )
+
+          : > subscription.txt
+
+          for url in "${urls[@]}"; do
+            echo "Downloading $url"
+            curl -L --fail --silent --show-error --max-time 60 "$url" >> subscription.txt
+            printf "\n" >> subscription.txt
+          done
+
+          # Remove empty lines and exact duplicate entries.
+          awk 'NF && !seen[$0]++' subscription.txt > subscription.tmp
+          mv subscription.tmp subscription.txt
+
+      - name: Commit updated subscription
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add subscription.txt
+
+          if git diff --cached --quiet; then
+            echo "Subscription has no changes."
+          else
+            git commit -m "Update subscription"
+            git push
+          fi
